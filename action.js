@@ -158,8 +158,7 @@ const waitForStatus = async ({
       throw new StatusError('Unknown status error');
     } catch (e) {
       console.log(
-        `Deployment unavailable or not successful, retrying (attempt ${
-          i + 1
+        `Deployment unavailable or not successful, retrying (attempt ${i + 1
         } / ${iterations})`
       );
       if (e instanceof StatusError) {
@@ -218,6 +217,8 @@ const waitForDeploymentToStart = async ({
         environment,
       });
 
+      console.log(deployments.data)
+
       const deployment =
         deployments.data.length > 0 &&
         deployments.data.find((deployment) => {
@@ -229,14 +230,12 @@ const waitForDeploymentToStart = async ({
       }
 
       console.log(
-        `Could not find any deployments for actor ${actorName}, retrying (attempt ${
-          i + 1
+        `Could not find any deployments for actor ${actorName}, retrying (attempt ${i + 1
         } / ${iterations})`
       );
-    } catch(e) {
+    } catch (e) {
       console.log(
-        `Error while fetching deployments, retrying (attempt ${
-          i + 1
+        `Error while fetching deployments, retrying (attempt ${i + 1
         } / ${iterations})`
       );
 

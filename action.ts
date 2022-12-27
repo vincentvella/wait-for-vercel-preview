@@ -285,7 +285,7 @@ async function getShaForPullRequest({ octokit, owner, repo, number }) {
   return prSHA;
 }
 
-const run = async () => {
+export const run = async () => {
   try {
     // Inputs
     const GITHUB_TOKEN = core.getInput('token', { required: true });
@@ -391,5 +391,3 @@ const run = async () => {
     core.setFailed(error.message);
   }
 };
-
-exports.run = run;

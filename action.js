@@ -199,7 +199,7 @@ const waitForDeploymentToStart = async ({
   repo,
   sha,
   environment,
-  actorName = 'vercel[bot]',
+  actorName,
   maxTimeout = 20,
   checkIntervalInMilliseconds = 2000,
 }) => {
@@ -280,6 +280,7 @@ const run = async () => {
     const GITHUB_TOKEN = core.getInput('token', { required: true });
     const VERCEL_PASSWORD = core.getInput('vercel_password');
     const ENVIRONMENT = core.getInput('environment');
+    const actorName = core.getInput('actor') || 'vercel[bot]';
     const MAX_TIMEOUT = Number(core.getInput('max_timeout')) || 60;
     const ALLOW_INACTIVE = Boolean(core.getInput('allow_inactive')) || false;
     const PATH = core.getInput('path') || '/';
@@ -325,7 +326,7 @@ const run = async () => {
       repo,
       sha: sha,
       environment: ENVIRONMENT,
-      actorName: 'vercel[bot]',
+      actorName,
       maxTimeout: MAX_TIMEOUT,
       checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
     });

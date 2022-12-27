@@ -1,14 +1,14 @@
-// @ts-check
-// Dependencies are compiled using https://github.com/vercel/ncc
-const core = require('@actions/core');
-const github = require('@actions/github');
-const axios = require('axios');
-const setCookieParser = require('set-cookie-parser');
+import * as core from '@actions/core'
+import * as github from '@actions/github'
+import axios from 'axios'
+import setCookieParser from 'set-cookie-parser'
 
-const calculateIterations = (maxTimeoutSec, checkIntervalInMilliseconds) =>
+type Kit = ReturnType<typeof github.getOctokit>
+
+const calculateIterations = (maxTimeoutSec: number, checkIntervalInMilliseconds: number) =>
   Math.floor(maxTimeoutSec / (checkIntervalInMilliseconds / 1000));
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitForUrl = async ({
   url,
@@ -123,7 +123,7 @@ const waitForStatus = async ({
   allowInactive,
   checkIntervalInMilliseconds,
 }) => {
-  const octokit = new github.getOctokit(token);
+  const octokit = github.getOctokit(token);
   const iterations = calculateIterations(
     maxTimeout,
     checkIntervalInMilliseconds
@@ -184,6 +184,18 @@ class StatusError extends Error {
   }
 }
 
+type DeploymentParameters = {
+  expectedDeployments?: number;
+  octokit: Kit;
+  owner: string;
+  repo: string;
+  sha: string;
+  environment: string;
+  actorName: string;
+  maxTimeout?: number;
+  checkIntervalInMilliseconds?: number;
+}
+
 /**
  * Waits until the github API returns a deployment for
  * a given actor.
@@ -193,7 +205,8 @@ class StatusError extends Error {
  *
  * @returns
  */
-const waitForDeploymentToStart = async ({
+const waitForDeploymentsToStart = async ({
+  expectedDeployments = 1,
   octokit,
   owner,
   repo,
@@ -202,7 +215,7 @@ const waitForDeploymentToStart = async ({
   actorName,
   maxTimeout = 20,
   checkIntervalInMilliseconds = 2000,
-}) => {
+}: DeploymentParameters) => {
   const iterations = calculateIterations(
     maxTimeout,
     checkIntervalInMilliseconds
@@ -217,16 +230,14 @@ const waitForDeploymentToStart = async ({
         environment,
       });
 
-      console.log(deployments.data)
-
-      const deployment =
+      const foundDeployments =
         deployments.data.length > 0 &&
-        deployments.data.find((deployment) => {
-          return deployment.creator.login === actorName;
-        });
+        deployments.data.filter((deployment) => deployment.creator.login === actorName);
 
-      if (deployment) {
-        return deployment;
+      console.log('foundDeployments:', foundDeployments)
+
+      if (foundDeployments.length === expectedDeployments) {
+        return foundDeployments;
       }
 
       console.log(
@@ -281,6 +292,7 @@ const run = async () => {
     const VERCEL_PASSWORD = core.getInput('vercel_password');
     const ENVIRONMENT = core.getInput('environment');
     const actorName = core.getInput('actor') || 'vercel[bot]';
+    const expectedDeployments = Number(core.getInput('expected_deployments')) || 1;
     const MAX_TIMEOUT = Number(core.getInput('max_timeout')) || 60;
     const ALLOW_INACTIVE = Boolean(core.getInput('allow_inactive')) || false;
     const PATH = core.getInput('path') || '/';
@@ -320,7 +332,8 @@ const run = async () => {
     }
 
     // Get deployments associated with the pull request.
-    const deployment = await waitForDeploymentToStart({
+    const deployments = await waitForDeploymentsToStart({
+      expectedDeployments,
       octokit,
       owner,
       repo,
@@ -331,44 +344,49 @@ const run = async () => {
       checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
     });
 
-    if (!deployment) {
-      core.setFailed('no vercel deployment found, exiting...');
+    if (!deployments.length) {
+      core.setFailed('no vercel deployments found, exiting...');
       return;
     }
 
-    const status = await waitForStatus({
-      owner,
-      repo,
-      deployment_id: deployment.id,
-      token: GITHUB_TOKEN,
-      maxTimeout: MAX_TIMEOUT,
-      allowInactive: ALLOW_INACTIVE,
-      checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
-    });
+    await Promise.all(deployments.map((deployment) => new Promise<void>(resolve => {
+      waitForStatus({
+        owner,
+        repo,
+        deployment_id: deployment.id,
+        token: GITHUB_TOKEN,
+        maxTimeout: MAX_TIMEOUT,
+        allowInactive: ALLOW_INACTIVE,
+        checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
+      }).then(status => {
+        // Get target url
+        const targetUrl = status.target_url;
+        if (!targetUrl) {
+          core.setFailed(`no target_url found in the status check`);
+          return;
+        }
 
-    // Get target url
-    const targetUrl = status.target_url;
+        console.log('target url »', targetUrl);
 
-    if (!targetUrl) {
-      core.setFailed(`no target_url found in the status check`);
-      return;
-    }
+        // Set output
+        core.setOutput('url', targetUrl);
 
-    console.log('target url »', targetUrl);
+        // Wait for url to respond with a success
+        console.log(`Waiting for a status code 200 from: ${targetUrl}`);
 
-    // Set output
-    core.setOutput('url', targetUrl);
-
-    // Wait for url to respond with a success
-    console.log(`Waiting for a status code 200 from: ${targetUrl}`);
-
-    await waitForUrl({
-      url: targetUrl,
-      maxTimeout: MAX_TIMEOUT,
-      checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
-      vercelPassword: VERCEL_PASSWORD,
-      path: PATH,
-    });
+        waitForUrl({
+          url: targetUrl,
+          maxTimeout: MAX_TIMEOUT,
+          checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
+          vercelPassword: VERCEL_PASSWORD,
+          path: PATH,
+        }).then(() => {
+          resolve()
+        }).catch((error) => {
+          core.setFailed(error.message);
+        })
+      })
+    })))
   } catch (error) {
     core.setFailed(error.message);
   }

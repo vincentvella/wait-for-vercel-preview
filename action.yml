@@ -23,6 +23,14 @@ inputs:
   vercel_password:
     description: 'Vercel password protection secret'
     required: false
+  actor:
+    description: 'User or bot responsible for starting the deployment'
+    required: false
+    default: 'vercel[bot]'
+  expected_deployments:
+    description: 'Number of deployments expected to run on this Pull Request'
+    required: false
+    default: '1'
   path:
     description: 'The path to check. Defaults to the index of the domain'
     default: '/'

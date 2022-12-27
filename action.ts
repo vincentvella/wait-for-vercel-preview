@@ -24,7 +24,7 @@ const waitForUrl = async ({
 
   for (let i = 0; i < iterations; i++) {
     try {
-      let headers = {};
+      let headers: Record<string, string> = { "Accept-Encoding": "gzip,deflate,compress" };
 
       if (vercelPassword) {
         const jwt = await getPassword({
@@ -32,9 +32,7 @@ const waitForUrl = async ({
           vercelPassword,
         });
 
-        headers = {
-          Cookie: `_vercel_jwt=${jwt}`,
-        };
+        headers['Cookie'] = `_vercel_jwt=${jwt}`;
 
         core.setOutput('vercel_jwt', jwt);
       }

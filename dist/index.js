@@ -17606,15 +17606,13 @@ const waitForUrl = ({ url, maxTimeout, checkIntervalInMilliseconds, vercelPasswo
     const iterations = calculateIterations(maxTimeout, checkIntervalInMilliseconds);
     for (let i = 0; i < iterations; i++) {
         try {
-            let headers = {};
+            let headers = { "Accept-Encoding": "gzip,deflate,compress" };
             if (vercelPassword) {
                 const jwt = yield getPassword({
                     url,
                     vercelPassword,
                 });
-                headers = {
-                    Cookie: `_vercel_jwt=${jwt}`,
-                };
+                headers['Cookie'] = `_vercel_jwt=${jwt}`;
                 core.setOutput('vercel_jwt', jwt);
             }
             let checkUri = new URL(path, url);

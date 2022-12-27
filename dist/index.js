@@ -17618,6 +17618,7 @@ const waitForUrl = ({ url, maxTimeout, checkIntervalInMilliseconds, vercelPasswo
                 core.setOutput('vercel_jwt', jwt);
             }
             let checkUri = new URL(path, url);
+            console.log('sending request to: ', checkUri.toString());
             yield lib_axios.get(checkUri.toString(), {
                 headers,
             });

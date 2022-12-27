@@ -40,7 +40,7 @@ const waitForUrl = async ({
       }
 
       let checkUri = new URL(path, url);
-
+      console.log('sending request to: ', checkUri.toString())
       await axios.get(checkUri.toString(), {
         headers,
       });

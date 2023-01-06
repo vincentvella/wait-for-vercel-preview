@@ -112,6 +112,7 @@ const getPassword = async ({ url, vercelPassword }) => {
 	return vercelJwtCookie.value;
 };
 
+type Status = Awaited<ReturnType<Kit['rest']['repos']['listDeploymentStatuses']>>['data'][number]
 const waitForStatus = async ({
 	token,
 	owner,
@@ -120,7 +121,7 @@ const waitForStatus = async ({
 	maxTimeout,
 	allowInactive,
 	checkIntervalInMilliseconds,
-}) => {
+}): Promise<Status> => {
 	const octokit = github.getOctokit(token);
 	const iterations = calculateIterations(
 		maxTimeout,
@@ -185,6 +186,7 @@ class StatusError extends Error {
 type DeploymentParameters = {
 	expectedDeployments?: number;
 	octokit: Kit;
+	deployment?: string;
 	owner: string;
 	repo: string;
 	sha: string;
@@ -193,6 +195,10 @@ type DeploymentParameters = {
 	maxTimeout?: number;
 	checkIntervalInMilliseconds?: number;
 }
+
+type Deployment = Awaited<ReturnType<Kit['rest']['repos']['listDeployments']>>['data'][number]
+
+const stripEnvironmentFromName = (name: string) => name.replace('Preview – ', '').replace('Production – ', '')
 
 /**
  * Waits until the github API returns a deployment for
@@ -206,6 +212,7 @@ type DeploymentParameters = {
 const waitForDeploymentsToStart = async ({
 	expectedDeployments = 1,
 	octokit,
+	deployment,
 	owner,
 	repo,
 	sha,
@@ -213,7 +220,7 @@ const waitForDeploymentsToStart = async ({
 	actorName,
 	maxTimeout = 20,
 	checkIntervalInMilliseconds = 2000,
-}: DeploymentParameters) => {
+}: DeploymentParameters): Promise<Deployment | Deployment[]> => {
 	const iterations = calculateIterations(
 		maxTimeout,
 		checkIntervalInMilliseconds
@@ -228,17 +235,25 @@ const waitForDeploymentsToStart = async ({
 				environment,
 			});
 
-			const foundDeployments =
+			const foundDeployments: Deployment[] =
 				deployments.data.length > 0 &&
 				deployments.data.filter((deployment) => deployment.creator.login === actorName);
 
-
-			if (foundDeployments.length === expectedDeployments) {
-				return foundDeployments;
-			} else if (foundDeployments.length !== 0 && foundDeployments.length !== expectedDeployments) {
-				console.log(`Deployments in progress.... ( ${foundDeployments.length}/${expectedDeployments} complete )`)
+			if (deployment) {
+				const foundDeployment = foundDeployments.find(dep => (stripEnvironmentFromName(dep.environment) === deployment))
+				if (foundDeployment) {
+					return foundDeployment
+				} else {
+					console.log('Deployments in progress, deployment not ready')
+				}
 			} else {
-				console.log(`Could not find any deployments for actor ${actorName}, retrying (attempt ${i + 1} / ${iterations})`);
+				if (foundDeployments.length === expectedDeployments) {
+					return foundDeployments;
+				} else if (foundDeployments.length !== 0 && foundDeployments.length !== expectedDeployments) {
+					console.log(`Deployments in progress.... ( ${foundDeployments.length}/${expectedDeployments} complete )`)
+				} else {
+					console.log(`Could not find any deployments for actor ${actorName}, retrying (attempt ${i + 1} / ${iterations})`);
+				}
 			}
 
 		} catch (e) {
@@ -279,6 +294,37 @@ async function getShaForPullRequest({ octokit, owner, repo, number }) {
 	return prSHA;
 }
 
+const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH }) => async (status: Status) => {
+	// Get target url
+	const environmentUrl = status.environment_url;
+	if (!environmentUrl) {
+		core.setFailed(`no target_url found in the status check`);
+		return;
+	}
+
+	const projectName = stripEnvironmentFromName(status.environment)
+	console.log('project name »', projectName)
+	console.log('target url »', environmentUrl);
+	// Set output
+	core.setOutput(`app-${projectName}`, environmentUrl);
+
+	// Wait for url to respond with a success
+	console.log(`Waiting for a status code 200 from: ${environmentUrl}`);
+
+	try {
+
+		await waitForUrl({
+			url: environmentUrl,
+			maxTimeout: MAX_TIMEOUT,
+			checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
+			vercelPassword: VERCEL_PASSWORD,
+			path: PATH,
+		})
+	} catch (error) {
+		core.setFailed(error.message);
+	}
+}
+
 export const run = async () => {
 	try {
 		// Inputs
@@ -292,6 +338,7 @@ export const run = async () => {
 		const PATH = core.getInput('path') || '/';
 		const CHECK_INTERVAL_IN_MS =
 			(Number(core.getInput('check_interval')) || 2) * 1000;
+		const deployment = core.getInput('deployment')
 
 		// Fail if we have don't have a github token
 		if (!GITHUB_TOKEN) {
@@ -328,6 +375,7 @@ export const run = async () => {
 		// Get deployments associated with the pull request.
 		const deployments = await waitForDeploymentsToStart({
 			expectedDeployments,
+			deployment,
 			octokit,
 			owner,
 			repo,
@@ -338,50 +386,38 @@ export const run = async () => {
 			checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
 		});
 
-		if (!deployments.length) {
-			core.setFailed('no vercel deployments found, exiting...');
-			return;
-		}
+		// Handles num of array scenario
+		if (Array.isArray(deployments)) {
+			if (!deployments.length) {
+				core.setFailed('no vercel deployments found, exiting...');
+				return;
+			}
 
-		await Promise.all(deployments.map((deployment) => new Promise<void>(resolve => {
-			waitForStatus({
+			await Promise.all(deployments.map((deployment) => new Promise<void>(resolve => {
+				waitForStatus({
+					owner,
+					repo,
+					deployment_id: deployment.id,
+					token: GITHUB_TOKEN,
+					maxTimeout: MAX_TIMEOUT,
+					allowInactive: ALLOW_INACTIVE,
+					checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
+				}).then(status => handleStatus({ CHECK_INTERVAL_IN_MS, MAX_TIMEOUT, PATH, VERCEL_PASSWORD })(status).then(() => resolve()))
+			})))
+		} else if (!!deployments) {
+			// Handles specific deployment scenario
+			const status = await waitForStatus({
 				owner,
 				repo,
-				deployment_id: deployment.id,
+				deployment_id: deployments.id,
 				token: GITHUB_TOKEN,
 				maxTimeout: MAX_TIMEOUT,
 				allowInactive: ALLOW_INACTIVE,
 				checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
-			}).then(status => {
-				// Get target url
-				const environmentUrl = status.environment_url;
-				if (!environmentUrl) {
-					core.setFailed(`no target_url found in the status check`);
-					return;
-				}
-
-				const projectName = status.environment.replace('Preview – ', '').replace('Production – ', '')
-				console.log('project name »', projectName)
-				console.log('target url »', environmentUrl);
-				// Set output
-				core.setOutput(`app-${projectName}`, environmentUrl);
-
-				// Wait for url to respond with a success
-				console.log(`Waiting for a status code 200 from: ${environmentUrl}`);
-
-				waitForUrl({
-					url: environmentUrl,
-					maxTimeout: MAX_TIMEOUT,
-					checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
-					vercelPassword: VERCEL_PASSWORD,
-					path: PATH,
-				}).then(() => {
-					resolve()
-				}).catch((error) => {
-					core.setFailed(error.message);
-				})
 			})
-		})))
+			await handleStatus({ CHECK_INTERVAL_IN_MS, MAX_TIMEOUT, PATH, VERCEL_PASSWORD })(status)
+		}
+
 	} catch (error) {
 		core.setFailed(error.message);
 	}

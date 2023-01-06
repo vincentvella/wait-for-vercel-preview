@@ -35,6 +35,10 @@ inputs:
     description: 'The path to check. Defaults to the index of the domain'
     default: '/'
     required: false
+  deployment:
+    description: 'Specific deployment you are waiting for'
+    default: '/'
+    required: false
 
 outputs:
   url:

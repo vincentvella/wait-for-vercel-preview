@@ -17743,11 +17743,15 @@ const waitForDeploymentsToStart = ({ expectedDeployments = 1, octokit, owner, re
             });
             const foundDeployments = deployments.data.length > 0 &&
                 deployments.data.filter((deployment) => deployment.creator.login === actorName);
-            console.log('foundDeployments:', foundDeployments);
             if (foundDeployments.length === expectedDeployments) {
                 return foundDeployments;
             }
-            console.log(`Could not find any deployments for actor ${actorName}, retrying (attempt ${i + 1} / ${iterations})`);
+            else if (foundDeployments.length !== 0 && foundDeployments.length !== expectedDeployments) {
+                console.log(`Deployments in progress.... ( ${foundDeployments.length}/${expectedDeployments} complete )`);
+            }
+            else {
+                console.log(`Could not find any deployments for actor ${actorName}, retrying (attempt ${i + 1} / ${iterations})`);
+            }
         }
         catch (e) {
             console.log(`Error while fetching deployments, retrying (attempt ${i + 1} / ${iterations})`);
@@ -17850,7 +17854,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                     core.setFailed(`no target_url found in the status check`);
                     return;
                 }
-                const projectName = status.environment.replace('Preview - ', '').replace('Production - ', '');
+                const projectName = status.environment.replace('Preview – ', '').replace('Production – ', '');
                 console.log('project name »', projectName);
                 console.log('target url »', environmentUrl);
                 // Set output

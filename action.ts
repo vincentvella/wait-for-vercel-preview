@@ -357,6 +357,7 @@ export const run = async () => {
         allowInactive: ALLOW_INACTIVE,
         checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
       }).then(status => {
+				console.log(status)
         // Get target url
         const targetUrl = status.target_url;
         if (!targetUrl) {
@@ -365,7 +366,7 @@ export const run = async () => {
         }
 
         console.log('target url »', targetUrl);
-
+				const projectName = status.description
         // Set output
         core.setOutput('url', targetUrl);
 

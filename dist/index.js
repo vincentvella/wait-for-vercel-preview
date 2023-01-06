@@ -17844,6 +17844,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 allowInactive: ALLOW_INACTIVE,
                 checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
             }).then(status => {
+                console.log(status);
                 // Get target url
                 const targetUrl = status.target_url;
                 if (!targetUrl) {
@@ -17851,6 +17852,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                     return;
                 }
                 console.log('target url »', targetUrl);
+                const projectName = status.description;
                 // Set output
                 core.setOutput('url', targetUrl);
                 // Wait for url to respond with a success

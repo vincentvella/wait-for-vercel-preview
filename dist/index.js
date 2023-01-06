@@ -17742,8 +17742,8 @@ const waitForDeploymentsToStart = ({ expectedDeployments = 1, octokit, deploymen
                 sha,
                 environment,
             });
-            const foundDeployments = deployments.data.length > 0 &&
-                deployments.data.filter((deployment) => deployment.creator.login === actorName);
+            const foundDeployments = deployments.data.length > 0 ?
+                deployments.data.filter((deployment) => deployment.creator.login === actorName) : [];
             if (deployment) {
                 const foundDeployment = foundDeployments.find(dep => (stripEnvironmentFromName(dep.environment) === deployment));
                 if (foundDeployment) {

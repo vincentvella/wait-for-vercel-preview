@@ -236,8 +236,8 @@ const waitForDeploymentsToStart = async ({
 			});
 
 			const foundDeployments: Deployment[] =
-				deployments.data.length > 0 &&
-				deployments.data.filter((deployment) => deployment.creator.login === actorName);
+				deployments.data.length > 0 ?
+					deployments.data.filter((deployment) => deployment.creator.login === actorName) : [];
 
 			if (deployment) {
 				const foundDeployment = foundDeployments.find(dep => (stripEnvironmentFromName(dep.environment) === deployment))

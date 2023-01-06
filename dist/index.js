@@ -17844,21 +17844,21 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 allowInactive: ALLOW_INACTIVE,
                 checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
             }).then(status => {
-                console.log(status);
                 // Get target url
-                const targetUrl = status.target_url;
-                if (!targetUrl) {
+                const environmentUrl = status.environment_url;
+                if (!environmentUrl) {
                     core.setFailed(`no target_url found in the status check`);
                     return;
                 }
-                console.log('target url »', targetUrl);
-                const projectName = status.description;
+                const projectName = status.environment.replace('Preview - ', '').replace('Production - ', '');
+                console.log('project name »', projectName);
+                console.log('target url »', environmentUrl);
                 // Set output
-                core.setOutput('url', targetUrl);
+                core.setOutput(`app-${projectName}`, environmentUrl);
                 // Wait for url to respond with a success
-                console.log(`Waiting for a status code 200 from: ${targetUrl}`);
+                console.log(`Waiting for a status code 200 from: ${environmentUrl}`);
                 waitForUrl({
-                    url: targetUrl,
+                    url: environmentUrl,
                     maxTimeout: MAX_TIMEOUT,
                     checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
                     vercelPassword: VERCEL_PASSWORD,

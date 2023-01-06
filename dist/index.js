@@ -17795,7 +17795,7 @@ function getShaForPullRequest({ octokit, owner, repo, number }) {
         return prSHA;
     });
 }
-const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH }) => (status) => __awaiter(void 0, void 0, void 0, function* () {
+const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH, handleSingleOutput = false }) => (status) => __awaiter(void 0, void 0, void 0, function* () {
     // Get target url
     const environmentUrl = status.environment_url;
     if (!environmentUrl) {
@@ -17806,7 +17806,12 @@ const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH
     console.log('project name »', projectName);
     console.log('target url »', environmentUrl);
     // Set output
-    core.setOutput(`app-${projectName}`, environmentUrl);
+    if (handleSingleOutput) {
+        core.setOutput('url', environmentUrl);
+    }
+    else {
+        core.setOutput(`app-${projectName}`, environmentUrl);
+    }
     // Wait for url to respond with a success
     console.log(`Waiting for a status code 200 from: ${environmentUrl}`);
     try {
@@ -17904,7 +17909,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 allowInactive: ALLOW_INACTIVE,
                 checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
             });
-            yield handleStatus({ CHECK_INTERVAL_IN_MS, MAX_TIMEOUT, PATH, VERCEL_PASSWORD })(status);
+            yield handleStatus({ CHECK_INTERVAL_IN_MS, MAX_TIMEOUT, PATH, VERCEL_PASSWORD, handleSingleOutput: true })(status);
         }
     }
     catch (error) {

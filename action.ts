@@ -294,7 +294,7 @@ async function getShaForPullRequest({ octokit, owner, repo, number }) {
 	return prSHA;
 }
 
-const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH }) => async (status: Status) => {
+const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH, handleSingleOutput = false }) => async (status: Status) => {
 	// Get target url
 	const environmentUrl = status.environment_url;
 	if (!environmentUrl) {
@@ -305,8 +305,13 @@ const handleStatus = ({ MAX_TIMEOUT, CHECK_INTERVAL_IN_MS, VERCEL_PASSWORD, PATH
 	const projectName = stripEnvironmentFromName(status.environment)
 	console.log('project name »', projectName)
 	console.log('target url »', environmentUrl);
+
 	// Set output
-	core.setOutput(`app-${projectName}`, environmentUrl);
+	if (handleSingleOutput) {
+		core.setOutput('url', environmentUrl)
+	} else {
+		core.setOutput(`app-${projectName}`, environmentUrl);
+	}
 
 	// Wait for url to respond with a success
 	console.log(`Waiting for a status code 200 from: ${environmentUrl}`);
@@ -415,7 +420,7 @@ export const run = async () => {
 				allowInactive: ALLOW_INACTIVE,
 				checkIntervalInMilliseconds: CHECK_INTERVAL_IN_MS,
 			})
-			await handleStatus({ CHECK_INTERVAL_IN_MS, MAX_TIMEOUT, PATH, VERCEL_PASSWORD })(status)
+			await handleStatus({ CHECK_INTERVAL_IN_MS, MAX_TIMEOUT, PATH, VERCEL_PASSWORD, handleSingleOutput: true })(status)
 		}
 
 	} catch (error) {
